@@ -1,0 +1,537 @@
+function varargout = guidemo(varargin)
+% GUIDEMO MATLAB code for guidemo.fig
+%      GUIDEMO, by itself, creates a new GUIDEMO or raises the existing
+%      singleton*.
+%
+%      H = GUIDEMO returns the handle to a new GUIDEMO or the handle to
+%      the existing singleton*.
+%
+%      GUIDEMO('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in GUIDEMO.M with the given input arguments.
+%
+%      GUIDEMO('Property','Value',...) creates a new GUIDEMO or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before guidemo_OpeningFcn gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to guidemo_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Edit the above text to modify the response to help guidemo
+
+% Last Modified by GUIDE v2.5 04-Jan-2019 16:00:07
+
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+                   'gui_Singleton',  gui_Singleton, ...
+                   'gui_OpeningFcn', @guidemo_OpeningFcn, ...
+                   'gui_OutputFcn',  @guidemo_OutputFcn, ...
+                   'gui_LayoutFcn',  [] , ...
+                   'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+
+% --- Executes just before guidemo is made visible.
+function guidemo_OpeningFcn(hObject, eventdata, handles, varargin)
+% This function has no output args, see OutputFcn.
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% varargin   command line arguments to guidemo (see VARARGIN)
+
+% Choose default command line output for guidemo
+handles.output = hObject;
+  b='PRESS TO ON';
+   set(handles.ON,'String',b);ls
+   
+% Update handles structure
+guidata(hObject, handles);
+
+% UIWAIT makes guidemo wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+
+% --- Outputs from this function are returned to the command line.
+function varargout = guidemo_OutputFcn(hObject, eventdata, handles) 
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+
+% --- Executes on button press in Startcamera.
+function Startcamera_Callback(hObject, eventdata, handles)
+% hObject    handle to Startcamera (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%vid = videoinput('winvideo','1','YUY2_640x480'); 
+
+%vid=webcam(1);
+url='http://192.168.0.103:8080/shot.jpg'
+
+load('myNet.mat');
+
+%ud.vid=webcam(2);
+% Preprocessing Options
+preprocessOpts.matchHistograms = true;
+preprocessOpts.adjustHistograms = false;
+preprocessOpts.targetForHistogramAndResize = ...
+imread('targetFaceHistogram.pgm');
+preprocessOpts.targetSize = 100;
+
+% Quality Control Options
+QC.oneNose = false;
+QC.oneMouth = false;
+if QC.oneNose
+    QC.noseDetector = vision.CascadeObjectDetector(...
+        'ClassificationModel', 'Nose', 'MergeThreshold', 10);
+end
+if QC.oneMouth
+    QC.mouthDetector = vision.CascadeObjectDetector(...
+        'ClassificationModel','Mouth','MergeThreshold',10);
+end
+
+% H,W of bounding box must be at least this size for a proper detection
+QC.minBBSize = 30; 
+% Create face detector
+faceDetector = vision.CascadeObjectDetector('MergeThreshold',10);
+  
+% For cropping of captured faces:
+bboxPad = 25;
+       
+
+
+
+%set(vid,'FramesPerTrigger',60); 
+backgroundframe=imread('bg.bmp');
+%set(vid, 'ReturnedColorspace', 'rgb'); 
+
+%triggerconfig(vid,'manual'); 
+strr='.jpg';
+%start(vid); %start video
+a= get(handles.ON,'Value')
+set1=1;
+framecnt=1;
+while set1 < 200
+
+if a==1
+    
+    filename=strcat(num2str(set1),'.jpg');
+    
+    aa= get(handles.stop,'Value')
+    if aa==1
+       set1=202; 
+    end
+    frame=imread(url);
+
+  %  frame = snapshot(vid);
+    image(frame);
+    currFrame = getframe(gca);%get current access
+    currFrame=currFrame.cdata;
+    Thre=get(handles.edit2,'String');
+    Area=get(handles.edit3,'String');
+    Area=str2double(Area);
+    Thre=str2double(Thre);
+    result=videodetection(backgroundframe,currFrame,Thre,Area)
+    
+    if result==1
+       
+       RGBFrame=currFrame;
+       imwrite(RGBFrame,filename);
+       pathname=pwd;
+       attachedFullFileName=strcat(pwd,'\',filename);
+       frameSize = size(RGBFrame);
+        imgHndl = imshow(RGBFrame);
+         count=0;
+           
+ %           RGBFrame = snapshot(ud.vid);
+  
+        grayFrame = rgb2gray(RGBFrame);
+            
+            bboxes = faceDetector.step(grayFrame);
+            for jj = 1:size(bboxes,1)  
+                if all(bboxes(jj, 3:4) >= QC.minBBSize)
+                    thisFace = imcrop(grayFrame, bboxes(jj,:));
+                    im=thisFace;
+                    thisFace=imresize(thisFace,[128 128]);
+                    TestImage=thisFace;
+                     if ismatrix(im)
+                                im = cat(3,im,im,im);
+                     end
+
+
+                    im=imresize(im,[227 227]);
+                    [label,score] = classify(myNet,im); % classify with deep learning
+                    
+                    OutputName=char(label);
+
+
+                    disp(OutputName);
+                    if strcmp(OutputName,'unknown')
+                       disp('Sending Mail') 
+                       [y,Fs] = audioread('audio.mp3');
+                        sound(y,Fs);
+                        
+                        sendim(attachedFullFileName)
+                    end
+                    score=num2str(score);
+                    RGBFrame = 	insertObjectAnnotation(RGBFrame, 'rectangle', bboxes(jj,:), OutputName,'FontSize',48);
+             end
+            end
+            
+            imshow(RGBFrame);
+            drawnow; 
+       
+       
+       
+    end
+    
+    
+else
+    
+    aa= get(handles.stop,'Value')
+    if aa==1
+       set1=7; 
+    end
+    filename=strcat(num2str(framecnt),strr);
+       frame=imread(url);
+
+   % frame = getsnapshot(vid);
+    image(frame);
+    currFrame = getframe(gca);%get current access
+    currFrame=currFrame.cdata;
+    imwrite(currFrame,filename);
+    framecnt=framecnt+1;
+
+
+    
+    
+end
+end
+
+
+% --- Executes on button press in ON.
+function ON_Callback(hObject, eventdata, handles)
+% hObject    handle to ON (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of ON
+
+a= get(hObject,'Value')
+
+if a==1
+    b='PRESS TO OFF';
+   set(handles.ON,'String',b);
+else
+    b='PRESS TO ON';
+    set(handles.ON,'String',b);
+end
+
+
+% --- Executes on button press in stop.
+function stop_Callback(hObject, eventdata, handles)
+% hObject    handle to stop (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of stop
+
+
+% --- Executes on button press in bg.
+function bg_Callback(hObject, eventdata, handles)
+% hObject    handle to bg (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% Hint: get(hObject,'Value') returns toggle state of bg
+%vid = videoinput('winvideo','1','YUY2_640x480'); 
+%vid=webcam(1);
+%set(vid,'FramesPerTrigger',60); 
+% set(vid, 'ReturnedColorspace', 'rgb'); 
+%triggerconfig(vid,'manual'); 
+strr='.bmp';
+%start(vid);
+pause(2);
+url='http://192.168.0.103:8080/shot.jpg'
+
+    frame=imread(url);
+
+%frame = snapshot(vid);
+
+axes(handles.axes1);
+image(frame);
+currFrame = getframe(gca);%get current access
+currFrame=currFrame.cdata;
+imwrite(currFrame,'bg.bmp');
+%delete(vid);
+
+helpdlg('background Captured');
+    
+    
+    
+
+
+
+function edit2_Callback(hObject, eventdata, handles)
+% hObject    handle to edit2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit2 as text
+%        str2double(get(hObject,'String')) returns contents of edit2 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function edit3_Callback(hObject, eventdata, handles)
+% hObject    handle to edit3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit3 as text
+%        str2double(get(hObject,'String')) returns contents of edit3 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit3_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+
+guidemo.m
+
+
+
+url='http://192.168.0.103:8080/shot.jpg'
+a=imread(url);
+
+figure;
+imshow(a);
+
+
+
+testcam.m
+
+function sendim(filename);
+UserName = 'cshyamsai@gmail.com';
+passWord = '';
+setpref('Internet','E_mail',UserName);
+setpref('Internet','SMTP_Server','smtp.gmail.com');
+setpref('Internet','SMTP_Username',UserName);
+setpref('Internet','SMTP_Password',passWord);
+props = java.lang.System.getProperties;
+props.setProperty('mail.smtp.auth','true');
+props.setProperty('mail.smtp.socketFactory.class', ...
+                  'javax.net.ssl.SSLSocketFactory');
+props.setProperty('mail.smtp.socketFactory.port','465');
+emailto = 'shyam.sret@yahoo.com'; % recipient's email
+sendmail(emailto, 'My Subject', 'My message',filename);
+
+
+
+sendim.m
+
+
+function varargout = demo1(varargin)
+% DEMO1 MATLAB code for demo1.fig
+%      DEMO1, by itself, creates a new DEMO1 or raises the existing
+%      singleton*.
+%
+%      H = DEMO1 returns the handle to a new DEMO1 or the handle to
+%      the existing singleton*.
+%
+%      DEMO1('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in DEMO1.M with the given input arguments.
+%
+%      DEMO1('Property','Value',...) creates a new DEMO1 or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before demo1_OpeningFcn gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to demo1_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Edit the above text to modify the response to help demo1
+
+% Last Modified by GUIDE v2.5 27-Jun-2020 16:42:37
+
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+                   'gui_Singleton',  gui_Singleton, ...
+                   'gui_OpeningFcn', @demo1_OpeningFcn, ...
+                   'gui_OutputFcn',  @demo1_OutputFcn, ...
+                   'gui_LayoutFcn',  [] , ...
+                   'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+
+% --- Executes just before demo1 is made visible.
+function demo1_OpeningFcn(hObject, eventdata, handles, varargin)
+% This function has no output args, see OutputFcn.
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% varargin   command line arguments to demo1 (see VARARGIN)
+
+% Choose default command line output for demo1
+handles.output = hObject;
+
+% Update handles structure
+guidata(hObject, handles);
+
+% UIWAIT makes demo1 wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+
+% --- Outputs from this function are returned to the command line.
+function varargout = demo1_OutputFcn(hObject, eventdata, handles) 
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+
+% --- Executes on button press in startcamera.
+function startcamera_Callback(hObject, eventdata, handles)
+% hObject    handle to startcamera (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+ camObj = webcam(1);
+ 
+        % Preview a stream of image frames.
+        %preview(camObj);
+ axes(handles.axes1);
+        % Acquire and display a single image frame.
+        img = snapshot(camObj);
+        imshow(img);
+
+
+
+
+
+
+
+
+
+
+% --- Executes on button press in pushbutton2.
+function pushbutton2_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+
+demo.m
+
+
+
+function clo(obj, in1, in2)
+%CLO Clear object
+%   CLO(H) deletes all children of the object with visible handles.
+%
+%   CLO(..., 'reset') deletes all children (including ones with hidden
+%   handles) and also resets all object properties to their default
+%   values.
+%
+%   CLO(..., HSAVE) deletes all children except those specified in
+%   HSAVE.
+%
+%   See also CLF, CLA, RESET, HOLD.
+
+%   Copyright 1984-2016 The MathWorks, Inc.
+
+% decode input args:
+hsave    = [];
+do_reset = '';
+
+narginchk(1, 3);
+
+if nargin > 1
+    if ischar(in1)
+        do_reset = in1;
+    else
+        hsave = in1;
+    end
+    if nargin > 2
+        if ischar(in2)
+            do_reset = in2;
+        else
+            hsave = in2;
+        end
+    end
+end
+
+% error-check input args
+if ~isempty(do_reset)
+  if ~strcmp(do_reset, 'reset')
+    error(message('MATLAB:clo:unknownOption'))
+  else
+    do_reset = 1;
+  end
+else
+  do_reset = 0;
+end
+
+if any(~isgraphics(hsave))
+  error(message('MATLAB:clo:invalidHandle'))
+end
+
+obj = handle(obj); % In case of double handle
+obj.clo(hsave, (do_reset == 1)); % Call clo method on graphics class
